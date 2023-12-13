@@ -4,15 +4,32 @@
   >
     <!-- Title with icon -->
     <div class="flex select-none items-center justify-center gap-2">
-      <h1 class="font-display font-light text-white">Nuxt Drawer</h1>
+      <h1 class="font-display text-xl font-light text-white">Nuxt Drawer</h1>
       <IconsIonColorPalette class="text-white" />
     </div>
 
+    <!-- Panel & buttons -->
     <div class="flex items-center justify-center gap-2">
-      <!-- Color picker -->
       <div class="flex flex-col">
-        <!-- <div class="rounded bg-white text-center">Pen size : O O O</div> -->
-        <Chrome v-model="lineColor" />
+        <!-- Color picker -->
+        <div class="overflow-hidden rounded">
+          <Chrome v-model="lineColor" />
+        </div>
+        <!-- Buttons -->
+        <div class="flex gap-2">
+          <button
+            class="mt-5 flex-1 rounded-full bg-sky-500 p-3 font-sans text-white transition-colors hover:bg-sky-600"
+            @click="saveCanvas()"
+          >
+            Save
+          </button>
+          <button
+            class="mt-5 flex-1 rounded-full bg-sky-500 p-3 font-sans text-white transition-colors hover:bg-sky-600"
+            @click="loadCanvas()"
+          >
+            Load
+          </button>
+        </div>
         <button
           class="mt-5 rounded-full bg-sky-500 p-3 font-sans text-white transition-colors hover:bg-sky-600"
           @click="clearCanvas()"
@@ -75,6 +92,39 @@ function clearCanvas() {
   if (!context) return
 
   context.clearRect(0, 0, canvas.width, canvas.height)
+}
+function saveCanvas() {
+  const canvas = canvasRef.value
+  if (!canvas) return
+
+  const dataURL = canvas.toDataURL()
+
+  localStorage.setItem('nuxtDrawer', dataURL)
+
+  alert('Drawing saved 💾')
+}
+function loadCanvas() {
+  const savedData = localStorage.getItem('nuxtDrawer')
+  if (!savedData) {
+    alert('No saved drawing found ⚠')
+    return
+  }
+
+  const canvas = canvasRef.value
+  if (!canvas) return
+
+  const context = canvas.getContext('2d')
+  if (!context) return
+
+  const img = new Image()
+
+  img.onload = function () {
+    context.clearRect(0, 0, canvas.width, canvas.height)
+    context.drawImage(img, 0, 0)
+  }
+  img.src = savedData
+
+  alert('Drawing loaded 💾')
 }
 
 // Utilities
