@@ -52,7 +52,7 @@
 
 <script setup lang="ts">
 import { Chrome } from '@ckpack/vue-color'
-import type { Draw, Point } from '@customTypes/typing'
+import type { Draw, Point } from '~/types/typing'
 
 const lineColor = ref<any>('#000000')
 
