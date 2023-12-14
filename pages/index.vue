@@ -1,11 +1,25 @@
 <template lang="html">
+  <ReconnectingBar
+    v-if="disconnectReason"
+    class="fixed top-0 z-20"
+    :reason="disconnectReason"
+  />
   <div
-    class="flex h-screen w-screen flex-col items-center justify-center bg-slate-900"
+    v-if="disconnectReason"
+    class="absolute z-10 flex h-full w-full items-center justify-center bg-slate-900 opacity-50"
+  >
+    <SvgSpinnersBarsRotateFade />
+  </div>
+
+  <div
+    class="bg-dark-color2 flex h-screen w-screen flex-col items-center justify-center"
   >
     <!-- Title with icon -->
     <div class="flex select-none items-center justify-center gap-2">
-      <h1 class="font-display text-xl font-light text-white">Nuxt Drawer</h1>
-      <IconsIonColorPalette class="text-white" />
+      <h1 class="font-display text-yellow-color text-xl font-light">
+        Nuxt Drawer
+      </h1>
+      <IconsIonColorPalette class="text-yellow-color" />
     </div>
 
     <!-- Panel & buttons -->
@@ -17,27 +31,11 @@
         </div>
         <!-- Buttons -->
         <div class="flex gap-2">
-          <button
-            class="mt-5 flex-1 rounded-full bg-sky-500 p-3 font-sans text-white transition-colors hover:bg-sky-600"
-            @click="saveCanvas()"
-          >
-            Save
-          </button>
-          <button
-            class="mt-5 flex-1 rounded-full bg-sky-500 p-3 font-sans text-white transition-colors hover:bg-sky-600"
-            @click="loadCanvas()"
-          >
-            Load
-          </button>
+          <button @click="saveCanvas()">Save</button>
+          <button @click="loadCanvas()">Load</button>
         </div>
-        <button
-          class="mt-5 rounded-full bg-sky-500 p-3 font-sans text-white transition-colors hover:bg-sky-600"
-          @click="socket.emit('clear'), clearCanvas()"
-        >
-          Clear
-        </button>
+        <button @click="socket.emit('clear'), clearCanvas()">Clear</button>
       </div>
-
       <!-- Canvas -->
       <canvas
         @mousedown="() => (isMouseDown = true)"
@@ -66,6 +64,8 @@ const lineColor = ref<any>('#000000')
 const isMouseDown = ref(false)
 const canvasRef = ref<HTMLCanvasElement | null>(null)
 const previousPoint = ref<Point | null>(null)
+
+const disconnectReason = ref('')
 
 // Functions
 function drawLine({ context, previousPoint, currentPoint, lineColor }: Draw) {
@@ -190,6 +190,9 @@ const mouseUpHandler = (e: MouseEvent) => {
 onMounted(() => {
   const context = canvasRef.value?.getContext('2d')
   // Add sockets
+  socket.on('connect', () => {
+    disconnectReason.value = ''
+  })
   socket.emit('client-ready')
   socket.on('get-canvas-state', () => {
     if (!canvasRef.value?.toDataURL()) return
@@ -209,6 +212,29 @@ onMounted(() => {
   socket.on('clear', () => {
     clearCanvas()
   })
+  socket.on('disconnect', (reason) => {
+    switch (reason) {
+      case 'io server disconnect':
+        disconnectReason.value =
+          'The server has forcefully disconnected the socket. Reconnecting to server...'
+        break
+      case 'io client disconnect':
+        disconnectReason.value =
+          'The socket was manually disconnected. Reconnecting to server...'
+        break
+      case 'ping timeout':
+        disconnectReason.value = 'Ping timeout. Reconnecting to server...'
+        break
+      case 'transport close':
+        disconnectReason.value =
+          'The connection was closed. Reconnecting to server...'
+        break
+      case 'transport error':
+        disconnectReason.value =
+          'The connection has encountered an error. Reconnecting to server...'
+        break
+    }
+  })
   // Add event listener
   canvasRef.value?.addEventListener('mousemove', mouseMoveHandler)
   window.addEventListener('mouseup', mouseUpHandler)
@@ -225,4 +251,8 @@ onUnmounted(() => {
 })
 </script>
 
-<style lang="postcss" scoped></style>
+<style lang="postcss" scoped>
+button {
+  @apply bg-yellow-color hover:bg-yellow-color2 text-dark-color mt-5 flex-1 rounded-full p-3 font-sans transition-colors;
+}
+</style>
