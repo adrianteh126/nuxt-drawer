@@ -32,7 +32,7 @@
         </div>
         <button
           class="mt-5 rounded-full bg-sky-500 p-3 font-sans text-white transition-colors hover:bg-sky-600"
-          @click="clearCanvas()"
+          @click="socket.emit('clear'), clearCanvas()"
         >
           Clear
         </button>
@@ -52,17 +52,23 @@
 
 <script setup lang="ts">
 import { Chrome } from '@ckpack/vue-color'
+import { io } from 'socket.io-client'
 import type { Draw, Point } from '~/types/typing'
 
+// const PORT = process.env.PORT || '3001'
+// const uri = `http://localhost:${PORT}`
+const uri = 'wss://nuxt-drawer-ws.onrender.com'
+const socket = io(uri, {
+  transports: ['websocket']
+})
+
 const lineColor = ref<any>('#000000')
-
 const isMouseDown = ref(false)
-
 const canvasRef = ref<HTMLCanvasElement | null>(null)
 const previousPoint = ref<Point | null>(null)
 
 // Functions
-function drawLine({ context, previousPoint, currentPoint }: Draw) {
+function drawLine({ context, previousPoint, currentPoint, lineColor }: Draw) {
   // Configuration
   const lineWidth = 5
   const radius = 2
@@ -70,8 +76,14 @@ function drawLine({ context, previousPoint, currentPoint }: Draw) {
   const endAngle = 2 * Math.PI
 
   context.lineWidth = lineWidth
-  context.strokeStyle = lineColor?.value.hex8
-  context.fillStyle = lineColor?.value.hex8
+  if (typeof lineColor === 'string') {
+    context.strokeStyle = lineColor
+    context.fillStyle = lineColor
+  } else {
+    context.lineWidth = lineWidth
+    context.strokeStyle = lineColor?.value.hex8
+    context.fillStyle = lineColor?.value.hex8
+  }
 
   // Context draw line
   let startPoint = previousPoint ?? currentPoint
@@ -83,6 +95,19 @@ function drawLine({ context, previousPoint, currentPoint }: Draw) {
   context.beginPath()
   context.arc(startPoint.x, startPoint.y, radius, startAngle, endAngle)
   context.fill()
+}
+function createLine({ context, previousPoint, currentPoint }: Draw) {
+  socket.emit('draw-line', {
+    previousPoint,
+    currentPoint,
+    lineColor: lineColor.value.hex8
+  })
+  drawLine({
+    context,
+    previousPoint,
+    currentPoint,
+    lineColor: lineColor.value.hex8
+  })
 }
 function clearCanvas() {
   const canvas = canvasRef.value
@@ -118,11 +143,12 @@ function loadCanvas() {
 
   const img = new Image()
 
+  img.src = savedData
+
   img.onload = function () {
     context.clearRect(0, 0, canvas.width, canvas.height)
     context.drawImage(img, 0, 0)
   }
-  img.src = savedData
 
   alert('Drawing loaded 💾')
 }
@@ -146,7 +172,7 @@ const mouseMoveHandler = (e: MouseEvent) => {
     const ctx = canvasRef.value?.getContext('2d')
     if (!ctx || !currentPoint) return
 
-    drawLine({
+    createLine({
       context: ctx,
       previousPoint: previousPoint.value,
       currentPoint: currentPoint
@@ -162,10 +188,38 @@ const mouseUpHandler = (e: MouseEvent) => {
 
 // Lifehooks
 onMounted(() => {
+  const context = canvasRef.value?.getContext('2d')
+  // Add sockets
+  socket.emit('client-ready')
+  socket.on('get-canvas-state', () => {
+    if (!canvasRef.value?.toDataURL()) return
+    socket.emit('canvas-state', canvasRef.value.toDataURL())
+  })
+  socket.on('canvas-state-from-server', (state: string) => {
+    const img = new Image()
+    img.src = state
+    img.onload = () => {
+      context?.drawImage(img, 0, 0)
+    }
+  })
+  socket.on('draw-line', ({ previousPoint, currentPoint, lineColor }: Draw) => {
+    if (!context) return
+    drawLine({ context, previousPoint, currentPoint, lineColor })
+  })
+  socket.on('clear', () => {
+    clearCanvas()
+  })
+  // Add event listener
   canvasRef.value?.addEventListener('mousemove', mouseMoveHandler)
   window.addEventListener('mouseup', mouseUpHandler)
 })
 onUnmounted(() => {
+  // Remove sockets
+  socket.off('get-canvas-state')
+  socket.off('canvas-state-from-server')
+  socket.off('draw-line')
+  socket.off('clear')
+  // Remove event listener
   canvasRef.value?.removeEventListener('mousemove', mouseMoveHandler)
   window.removeEventListener('mouseup', mouseUpHandler)
 })
