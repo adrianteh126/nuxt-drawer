@@ -19,6 +19,7 @@
     "vue-router": "^4.2.5"
   },
   "dependencies": {
-    "@ckpack/vue-color": "^1.5.0"
+    "@ckpack/vue-color": "^1.5.0",
+    "socket.io-client": "^4.7.2"
   }
 }
